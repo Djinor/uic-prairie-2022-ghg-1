@@ -1,0 +1,74 @@
+---
+title: "Plotting GHG Fluxes"
+author: "Gavin McNicol"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+## read and plot final data
+
+```{r}
+fluxes <- read_csv("data/final/221019_fluxes.csv")
+```
+
+```{r}
+fluxes %>% 
+  unite("patch", ecosystem_name, ecosystem_block, sep = "-") %>% 
+  mutate(order = ifelse(gas == "co2", 1, NA),
+         order = ifelse(gas == "ch4", 2, order),
+         order = ifelse(gas == "n2o", 3, order)) %>%
+  mutate(gas = fct_reorder(gas, order)) %>% 
+  mutate(order2 = ifelse(patch == "SW-1", 1, NA),
+         order2 = ifelse(patch == "UP-1", 2, order2),
+         order2 = ifelse(patch == "SW-2", 3, order2),
+         order2 = ifelse(patch == "UP-2", 4, order2)) %>% 
+  mutate(patch = fct_reorder(patch, order2)) %>% 
+  filter(p.value < 0.05) %>% 
+  ggplot(aes(x = patch, y = flux)) +
+  geom_hline(yintercept = 0, type = "dotted", color = 'grey') +
+  geom_boxplot(position = "dodge") +
+  geom_jitter(color = "black", width = 0.1) +
+  facet_wrap(~gas) + 
+  theme_classic() + 
+  labs(x = "Swale (SW) vs. Upland (UP)", y = expression("GHG Flux (mgC-CO"[2]*" / "*mu*"gC-CH"[4]*" / "*mu*"gN-N"[2]*"O m"^{-2}*" d"^{-1}*")"))
+```
+
+save plot
+
+```{r}
+ggsave("output/220709-soil-ghg-fluxes.png", width = 7, height = 4)
+```
+
+## plot overall boxplots
+
+```{r}
+fluxes %>% 
+  mutate(order = ifelse(gas == "co2", 1, NA),
+         order = ifelse(gas == "ch4", 2, order),
+         order = ifelse(gas == "n2o", 3, order)) %>%
+  mutate(gas = fct_reorder(gas, order)) %>% 
+  mutate(flux = ifelse(p.value > 0.05, 0, flux)) %>% 
+  ggplot(aes(x = gas, y = flux)) +
+  geom_hline(yintercept = 0, type = "dotted", color = 'grey') +
+  geom_boxplot(position = "dodge", width = 0.3) +
+  geom_jitter(color = "black", width = 0.05) +
+  theme_classic() + 
+  labs(x = "Soil Greenhouse Gas Flux", y = expression("GHG Flux (mgC-CO"[2]*" / "*mu*"gC-CH"[4]*" / "*mu*"gN-N"[2]*"O m"^{-2}*" d"^{-1}*")"))
+```
+
+save plot
+
+```{r}
+ggsave("output/220709-soil-ghg-fluxes-by-gas.png", width = 3, height = 4)
+```
+
+
