@@ -1,0 +1,201 @@
+---
+Data: "UIC prairie data 2022"
+title: "Junior' research"
+output: html_document
+date: "2023-04-02"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages}
+library(readr)
+library(tidyverse)
+library(readxl)
+library(openintro)
+library(tidyr)
+library(dplyr)
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r import-data-into-R}
+july09 <- read_csv("data/220709_fluxes.csv")
+july22 <- read_csv("data/220722_fluxes.csv")
+august12 <- read_csv("data/220812_fluxes.csv")
+september02 <- read_csv("data/220902_fluxes.csv")
+september16 <- read_csv("data/220916_fluxes.csv")
+september30 <- read_csv("data/220930_fluxes.csv")
+october19 <- read_csv("data/221019_fluxes.csv")
+november02 <- read_csv("data/221102_fluxes.csv")
+complete_data <- read_csv("data/complete-data-template.csv", col_types = list(col_character(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double()))
+
+```
+
+
+```{r merge-data-fluxes}
+ july <- full_join(july09, july22)
+
+september <- full_join(september02, september16) %>% 
+  full_join(september30)
+
+july_aug <- full_join(july, august12)
+
+sept_oct_nov <- full_join(october19, september) %>% 
+  full_join(november02)
+
+fluxes_data <- full_join(july_aug, sept_oct_nov)
+```
+
+```{r}
+fluxes_data <- bind_rows(list(fluxes_data, complete_data)) %>% 
+  janitor::clean_names()
+```
+
+
+```{r view-dataframe}
+glimpse(fluxes_data)
+```
+
+```{r select-variables}
+fluxe_data <- fluxes_data %>% 
+  select(ecosystem_name, ecosystem_block, gas, estimate, p_value, average_temp_kelvin, flux, date, sensor_soil_moisture_percent, oven_soil_moisture_percent, plant_biomass_g, plant_cover_percent, soil_temperature_c)
+```
+
+```{r }
+glimpse(fluxe_data)
+```
+
+```{r look-at-sensor-soil-moisture-vs-soil-temp}
+fluxe_data %>% 
+  ggplot(aes(x = sensor_soil_moisture_percent, y= soil_temperature_c))+
+  geom_smooth()+
+  theme()
+```
+
+```{r oven-soil-moisture-vs-soil-temp}
+fluxe_data %>% 
+  ggplot(aes(x = oven_soil_moisture_percent, y= soil_temperature_c))+
+  geom_smooth()+
+  theme()
+```
+
+
+```{r temporal-co2-flux}
+fluxe_data %>% 
+  select(flux, gas, date) %>% 
+  filter(gas == "co2") %>% 
+  ggplot(aes(x = date, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+```
+
+```{r temporal-ch4-flux}
+fluxe_data %>% 
+  select(flux, gas, date) %>% 
+  filter(gas == "ch4") %>% 
+  ggplot(aes(x = date, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+```
+
+```{r temporal-n2o-flux}
+fluxe_data %>% 
+  select(flux, gas, date) %>% 
+  filter(gas == "n2o") %>% 
+  ggplot(aes(x = date, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+```
+
+```{r spatial-co2-flux}
+fluxe_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "co2") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+
+```{r spatial-ch4-flux}
+fluxe_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "ch4") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+```{r spatial-n2o-flux}
+fluxe_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "n2o") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+
+
+
+```{r spatial-co2-ch4-n20-flux}
+fluxe_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+
+```{r relationship-between-soil-moisture-flux}
+fluxe_data %>% 
+  ggplot(aes(x = sensor_soil_moisture_percent, y = flux, color = gas))+
+  geom_point()+
+  theme_bw()
+```
+```{r}
+fluxe_data %>% 
+  ggplot(aes(x = soil_temperature_c, y = flux, color = gas))+
+  geom_point()+
+  theme_bw()
+    
+```
+
+```{r}
+fluxe_data %>% 
+  ggplot(aes(x = plant_biomass_g, y = flux, color = gas))+
+  geom_line()+
+  theme_bw()
+```
+
+
+```{r tempora-co2-ch4-n2o-flux}
+fluxe_data %>% 
+  ggplot(aes( x = date, y = flux, color = gas))+
+  geom_smooth()+
+  facet_wrap( ~ gas)+
+  theme_bw()
+  
+```
+
+```{r}
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
