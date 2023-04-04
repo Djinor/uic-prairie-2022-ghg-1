@@ -17,7 +17,7 @@ library(readxl)
 library(openintro)
 library(tidyr)
 library(dplyr)
-
+library(lubridate)
 ```
 
 ## R Markdown
@@ -25,6 +25,10 @@ library(dplyr)
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+## Read flux data
+
+# Method 1: using read_csv in series
 
 ```{r import-data-into-R}
 july09 <- read_csv("data/220709_fluxes.csv")
@@ -35,17 +39,18 @@ september16 <- read_csv("data/220916_fluxes.csv")
 september30 <- read_csv("data/220930_fluxes.csv")
 october19 <- read_csv("data/221019_fluxes.csv")
 november02 <- read_csv("data/221102_fluxes.csv")
-complete_data <- read_csv("data/complete-data-template.csv", col_types = list(col_character(),
-                                                                              col_double(),
-                                                                              col_double(),
-                                                                              col_double(),
-                                                                              col_double(),
-                                                                              col_double(),
-                                                                              col_double(),
-                                                                              col_double()))
-
 ```
 
+# Method 2: using iterative functions
+
+```{r lapply-read}
+files <- list.files("data/", pattern = "fluxes")
+fluxes_method2 <- lapply( paste0("data/", files), read_csv )
+```
+
+## Merging gas flux data from different sampling dates
+
+# Method 1: Using joins
 
 ```{r merge-data-fluxes}
  july <- full_join(july09, july22)
@@ -61,9 +66,73 @@ sept_oct_nov <- full_join(october19, september) %>%
 fluxes_data <- full_join(july_aug, sept_oct_nov)
 ```
 
+# Method 2: Using bind_rows()
+
+```{r bind-rows-all-data}
+fluxes_method2 <- bind_rows(fluxes_method2)
+```
+
+## Read the complete data
+
+```{r read-complete-data}
+complete_data <- read_csv("data/complete-data-template.csv", col_types = list(col_character(),
+                                                                              col_double(),
+                                                                              col_date(format = "%m/%d/%Y"),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double()))
+```
+
+
+
+## Join the fluxes with the complete data (environemental conditions)
+
+# Method 1: bind_rows
+
 ```{r}
 fluxes_data <- bind_rows(list(fluxes_data, complete_data)) %>% 
   janitor::clean_names()
+```
+
+# Method 2: using joins
+
+```{r check-names}
+names(complete_data)
+```
+
+```{r}
+names(fluxes_data)
+```
+
+## prepare complete_data for joining
+
+```{r}
+complete_data_fixed <- complete_data %>% 
+  rename("rep" = "Chamber") %>% 
+  separate(Plot, c("ecosystem_name", "ecosystem_block"), sep = "-") %>% 
+  mutate(ecosystem_name = case_when(
+    ecosystem_name == "Swale" ~ "SW",
+    ecosystem_name == "Upland" ~ "UP",
+    TRUE ~ ecosystem_name)) %>% 
+  janitor::clean_names() %>% 
+  pivot_longer(10:12, names_to = "gas", values_to = "flux") %>% 
+  mutate(gas = case_when(
+    gas == "co2_flux_ppm" ~ "co2",
+        gas == "ch4_flux_ppm" ~ "ch4",
+        gas == "n2o_flux_ppm" ~ "n2o",
+  )) %>% 
+  select(-flux) %>% 
+  mutate(ecosystem_block = as.numeric(ecosystem_block))
+```
+
+## prepare fluxes_method2 to join, and join with complete data
+
+```{r}
+fluxes_data_method2 <- fluxes_method2 %>% 
+  mutate(date = ymd(date)) %>% 
+  full_join(complete_data_fixed)
 ```
 
 
