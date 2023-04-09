@@ -140,6 +140,36 @@ fluxes_data_method2 <- fluxes_method2 %>%
 glimpse(fluxes_data_method2)
 ```
 
+```{r soil-moisture-over-time}
+my_prairie_data %>% 
+  ggplot(aes( x= date, y = sensor_soil_moisture_percent))+
+  geom_smooth()
+```
+
+
+
+```{r soil-temp-over-time}
+my_prairie_data %>% 
+  ggplot(aes( x = date, y = soil_temperature_c))+
+  geom_smooth()
+```
+
+```{r spatial-soil-moisture-}
+my_prairie_data %>%
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP") %>% 
+  ggplot(aes( x = ecosystem_name, y = sensor_soil_moisture_percent))+
+  geom_boxplot()+
+  theme_bw()
+```
+
+
+```{r spatial-soil-temp}
+my_prairie_data %>%
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP") %>% 
+  ggplot(aes( x = ecosystem_name, y = soil_temperature_c))+
+  geom_boxplot()+
+  theme_bw()
+```
 
 ```{r look-at-sensor-soil-moisture-vs-soil-temp}
 fluxes_data_method2 %>% 
@@ -147,6 +177,7 @@ fluxes_data_method2 %>%
   geom_smooth()+
   theme()
 ```
+
 
 ```{r oven-soil-moisture-vs-soil-temp}
 fluxes_data_method2%>% 
