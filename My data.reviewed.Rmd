@@ -1,0 +1,287 @@
+---
+Data: "UIC prairie data 2022"
+title: "Junior' research"
+output: html_document
+date: "2023-04-02"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages}
+library(readr)
+library(tidyverse)
+library(readxl)
+library(openintro)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+## Read flux data
+
+# Method 1: using read_csv in series
+
+```{r import-data-into-R}
+july09 <- read_csv("data/220709_fluxes.csv")
+july22 <- read_csv("data/220722_fluxes.csv")
+august12 <- read_csv("data/220812_fluxes.csv")
+september02 <- read_csv("data/220902_fluxes.csv")
+september16 <- read_csv("data/220916_fluxes.csv")
+september30 <- read_csv("data/220930_fluxes.csv")
+october19 <- read_csv("data/221019_fluxes.csv")
+november02 <- read_csv("data/221102_fluxes.csv")
+```
+
+# Method 2: using iterative functions
+
+```{r lapply-read}
+files <- list.files("data/", pattern = "fluxes")
+fluxes_method2 <- lapply( paste0("data/", files), read_csv )
+```
+
+## Merging gas flux data from different sampling dates
+
+# Method 1: Using joins
+
+```{r merge-data-fluxes}
+ july <- full_join(july09, july22)
+
+september <- full_join(september02, september16) %>% 
+  full_join(september30)
+
+july_aug <- full_join(july, august12)
+
+sept_oct_nov <- full_join(october19, september) %>% 
+  full_join(november02)
+
+fluxes_data <- full_join(july_aug, sept_oct_nov)
+```
+
+# Method 2: Using bind_rows()
+
+```{r bind-rows-all-data}
+fluxes_method2 <- bind_rows(fluxes_method2)
+```
+
+## Read the complete data
+
+```{r read-complete-data}
+complete_data <- read_csv("data/complete-data-template.csv", col_types = list(col_character(),
+                                                                              col_double(),
+                                                                              col_date(format = "%m/%d/%Y"),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double(),
+                                                                              col_double()))
+```
+
+
+
+## Join the fluxes with the complete data (environemental conditions)
+
+# Method 1: bind_rows
+
+```{r}
+fluxes_data <- bind_rows(list(fluxes_data, complete_data)) %>% 
+  janitor::clean_names()
+```
+
+# Method 2: using joins
+
+```{r check-names}
+names(complete_data)
+```
+
+```{r}
+names(fluxes_data)
+```
+
+## prepare complete_data for joining
+
+```{r}
+complete_data_fixed <- complete_data %>% 
+  rename("rep" = "Chamber") %>% 
+  separate(Plot, c("ecosystem_name", "ecosystem_block"), sep = "-") %>% 
+  mutate(ecosystem_name = case_when(
+    ecosystem_name == "Swale" ~ "SW",
+    ecosystem_name == "Upland" ~ "UP",
+    TRUE ~ ecosystem_name)) %>% 
+  janitor::clean_names() %>% 
+  pivot_longer(10:12, names_to = "gas", values_to = "flux") %>% 
+  mutate(gas = case_when(
+    gas == "co2_flux_ppm" ~ "co2",
+        gas == "ch4_flux_ppm" ~ "ch4",
+        gas == "n2o_flux_ppm" ~ "n2o",
+  )) %>% 
+  select(-flux) %>% 
+  mutate(ecosystem_block = as.numeric(ecosystem_block))
+```
+
+## prepare fluxes_method2 to join, and join with complete data
+
+```{r}
+fluxes_data_method2 <- fluxes_method2 %>% 
+  mutate(date = ymd(date)) %>% 
+  full_join(complete_data_fixed)
+```
+
+
+```{r convert-into-file, eval = F}
+write_csv(my_prairie_data, file = "data/my-prairie-data.csv")
+```
+
+```{r view-dataframe}
+my_prairie_data <- fluxes_data_method2
+glimpse(my_prairie_data)
+```
+
+
+```{r look-at-sensor-soil-moisture-vs-soil-temp}
+my_prairie_data %>% 
+  ggplot(aes(x = sensor_soil_moisture_percent, y= soil_temperature_c))+
+  geom_smooth()+
+  theme()
+```
+
+```{r oven-soil-moisture-vs-soil-temp}
+my_prairie_data%>% 
+  ggplot(aes(x = oven_soil_moisture_percent, y= soil_temperature_c))+
+  geom_smooth()+
+  theme()
+```
+
+
+```{r temporal-co2-flux}
+my_prairie_data %>% 
+  select(flux, gas, date) %>% 
+  filter(gas == "co2") %>% 
+  ggplot(aes(x = date, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+```
+
+```{r temporal-ch4-flux}
+my_prairie_data %>% 
+  select(flux, gas, date) %>% 
+  filter(gas == "ch4") %>% 
+  ggplot(aes(x = date, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+```
+
+```{r temporal-n2o-flux}
+my_prairie_data %>% 
+  select(flux, gas, date) %>% 
+  filter(gas == "n2o") %>% 
+  ggplot(aes(x = date, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+```
+
+```{r spatial-co2-flux}
+my_prairie_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "co2") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+
+```{r spatial-ch4-flux}
+my_prairie_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "ch4") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+
+
+```{r spatial-n2o-flux}
+my_prairie_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "n2o") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+
+
+
+```{r spatial-co2-ch4-n20-flux}
+my_prairie_data %>% 
+  select(flux, ecosystem_name, gas) %>% 
+  filter(ecosystem_name == "SW" | ecosystem_name == "UP") %>% 
+  ggplot(aes(x = ecosystem_name, y = flux, color = gas))+ 
+  geom_boxplot()
+```
+
+```{r relationship-between-soil-moisture-flux}
+my_prairie_data %>% 
+  ggplot(aes(x = sensor_soil_moisture_percent, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+  
+```
+
+```{r relationship-between-soil-temp-flux}
+my_prairie_data %>% 
+  ggplot(aes(x = soil_temperature_c, y = flux, color = gas))+
+  geom_smooth()+
+  theme_bw()
+    
+```
+
+```{r plant-biomas-vs-flux}
+my_prairie_data %>% 
+  ggplot(aes(x = plant_biomass_g, y = flux, color = gas))+
+  geom_boxplot()+
+  theme_bw()
+```
+```{r }
+my_prairie_data %>% 
+  ggplot(aes(x = plant_biomass_g))+
+  geom_histogram()+
+  theme_bw()
+```
+
+```{r}
+my_prairie_data %>% 
+  ggplot(aes(x = plant_cover_percent))+
+  geom_histogram()+
+  theme_bw()
+
+```
+
+
+```{r temporal-co2-ch4-n2o-flux, echo=FALSE, fig.height=4, fig.width=10}
+my_prairie_data %>% 
+  ggplot(aes( x = date, y = flux, color = gas))+
+  geom_smooth()+
+  facet_wrap( ~ gas)+
+  theme_bw()
+  
+```
+
+```{r summary-statistcs}
+my_prairie_data %>% 
+  select(-date, -oven_soil_moisture_percent, -estimate, -gas, -units, -total_vol_m3, -p.value, -ecosystem_name, -rep, -ecosystem_block) %>% 
+  summarise(soil_temp_min = min(soil_temperature_c, na.rm = T),
+          soil_temp_mean = mean(soil_temperature_c, na.rm = T),
+          soil_temp_med = median(soil_temperature_c, na.rm = T),
+          soil_temp_max = max(soil_temperature_c, na.rm = T))
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
