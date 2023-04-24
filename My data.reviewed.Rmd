@@ -18,6 +18,8 @@ library(openintro)
 library(tidyr)
 library(dplyr)
 library(lubridate)
+library(tidymodels)
+
 ```
 
 ## R Markdown
@@ -124,25 +126,29 @@ complete_data_fixed <- complete_data %>%
         gas == "n2o_flux_ppm" ~ "n2o",
   )) %>% 
   select(-flux) %>% 
-  mutate(ecosystem_block = as.numeric(ecosystem_block))
+  mutate(ecosystem_block = as.numeric(ecosystem_block)) %>% 
+   unite("plot", ecosystem_name : ecosystem_block, sep = "_", remove = FALSE)
 ```
 
 ## prepare fluxes_method2 to join, and join with complete data
 
 ```{r}
-fluxes_data_method2 <- fluxes_method2 %>% 
+fluxes_data_method2 <- fluxes_method2 %>%
   mutate(date = ymd(date)) %>% 
-  full_join(complete_data_fixed)
+  full_join(complete_data_fixed) 
+  
+  
 ```
 
 
 ```{r view-dataframe}
 my_prairie_data <- fluxes_data_method2
 glimpse(my_prairie_data)
+
 ```
 
 
-```{r soil-moisture-over-time}
+```{r soil-moisture-and-temp-over-time}
 my_prairie_data %>% 
   ggplot(aes( x= date, y = sensor_soil_moisture_percent))+
   geom_smooth()+
@@ -150,6 +156,7 @@ my_prairie_data %>%
     x = "Months", y = "Soil moisture in %")+
   theme_bw()
 ```
+
 
 ```{r soil-temp-over-time}
 my_prairie_data %>% 
@@ -160,62 +167,34 @@ my_prairie_data %>%
 ```
 
 
-```{r soil-temp-block1 }
-my_prairie_data %>%
-  filter( ecosystem_name == "SW" | ecosystem_name == "UP", ecosystem_block == "1") %>% 
-  ggplot(aes( x = date, y = soil_temperature_c, color = ecosystem_name))+
-  geom_smooth()+
-  labs(title = "Soil temperature in Swale and Upland 1", x = "Months", y = "Soil temp in °C")
-  
-```
-
-```{r soil-temp-block2 }
-my_prairie_data %>%
-  filter( ecosystem_name == "SW" | ecosystem_name == "UP", ecosystem_block == "2") %>% 
-  ggplot(aes( x = date, y = soil_temperature_c, color = ecosystem_name))+
-  geom_smooth()+
-  labs(title = "Soil temperature in Swale and Upland 2", x = "Months", y = "Soil temp in °C")
-  
-```
-
 ```{r soil-moisture-block1 }
 my_prairie_data %>%
-  filter( ecosystem_name == "SW" | ecosystem_name == "UP", ecosystem_block == "1") %>% 
-  ggplot(aes( x = date, y = sensor_soil_moisture_percent, color = ecosystem_name))+
+  ggplot(aes( x = date, y = sensor_soil_moisture_percent))+
   geom_smooth()+
-  labs(title = "Soil moisture in Swale and Upland 1", x = "Months", y = "Soil moisture in %")
+  geom_jitter()+
+  facet_wrap(~ plot)+
+  labs(title = "Soil moisture across all plots", x = "Months", y = "Soil moisture in %")
   
 ```
-
-```{r soil-moisture-block2 }
-my_prairie_data %>%
-  filter( ecosystem_name == "SW" | ecosystem_name == "UP", ecosystem_block == "2") %>% 
-  ggplot(aes( x = date, y = sensor_soil_moisture_percent, color = ecosystem_name))+
-  geom_smooth()+
-  labs(title = "Soil moisture in Swale and Upland 2", x = "Months", y = "Soil moisture in %")
-  
-```
-
 
 ```{r spatial-soil-moisture-}
 my_prairie_data %>%
-  filter(ecosystem_name == "SW" | ecosystem_name == "UP") %>% 
-  ggplot(aes( x = ecosystem_name, y = sensor_soil_moisture_percent))+
+  ggplot(aes( x = plot, y = sensor_soil_moisture_percent))+
   geom_boxplot()+
-  theme_bw()
+  labs(x = "Plots", y = "Soil moisture in (%)", title = "Soil moisture across plots")
 ```
 
 ```{r spatial-soil-temp}
 my_prairie_data %>%
-  filter(ecosystem_name == "SW" | ecosystem_name == "UP") %>% 
-  ggplot(aes( x = ecosystem_name, y = soil_temperature_c))+
+  ggplot(aes( x = plot, y = soil_temperature_c))+
   geom_boxplot()+
-  theme_bw()
+ labs(title = "Soil temperature across plots", x = "Plots", y = "Soil temperature (°C)")
 ```
 
 ```{r look-at-sensor-soil-moisture-vs-soil-temp}
 fluxes_data_method2 %>% 
   ggplot(aes(x = sensor_soil_moisture_percent, y= soil_temperature_c))+
+  geom_point()+
   geom_smooth(method = "lm")+
   theme()
 ```
@@ -224,7 +203,8 @@ fluxes_data_method2 %>%
 fluxes_data_method2 %>% 
   filter(gas == "co2") %>% 
   ggplot(aes(x = date, y = flux))+
-  geom_smooth()+
+  geom_smooth(method = "lm", se = FALSE)+
+  geom_jitter()+
   labs(title = "CO2 flux across months",
        x = "Months", y = "CO2 Flux  (mgc-co2_m2_d)" )+
   theme_bw()
@@ -235,7 +215,8 @@ fluxes_data_method2 %>%
 fluxes_data_method2 %>% 
   filter(gas == "ch4") %>% 
   ggplot(aes(x = date, y = flux))+
-  geom_smooth(method = "lm", color = "red")+
+  geom_smooth(color = "red", method = "lm", se = FALSE)+
+  geom_jitter()+
    labs(title = "CH4 flux across months",
        x = "Months", y = "CH4 Flux (mµgc-ch4_m2_d)" )+
   theme_bw()
@@ -243,48 +224,86 @@ fluxes_data_method2 %>%
 
 ```{r temporal-n2o-flux}
 fluxes_data_method2 %>% 
-  select(flux, gas, date) %>% 
   filter(gas == "n2o") %>% 
   ggplot(aes(x = date, y = flux))+
-  geom_smooth(method = "lm", color = "darkgreen")+
+  geom_smooth(color = "darkgreen", method = "lm", se = FALSE)+
+  geom_jitter()+
    labs(title = "N2O flux across months",
-       x = "Months", y = "N2O Flux (mµgn-n2o_m2_d)")
+       x = "Months", y = "N2O Flux (mµgn-n2o_m2_d)")+
   theme_gray()
 ``` 
 
 
-```{r spatial-co2-flux}
+```{r spatial-co2-flux-per-plot}
 fluxes_data_method2 %>% 
-  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "co2") %>% 
-  ggplot(aes(x = ecosystem_name, y = flux))+ 
- geom_violin()+
-  labs(title = "CO2 flux in Swale vs Upland", x = "Ecosystems",
+  filter( gas == "co2") %>% 
+  ggplot(aes(x = date, y = flux))+ 
+ geom_smooth()+
+  geom_jitter()+
+  facet_wrap(~ plot)+
+  labs(title = "Temporal CO2 flux across plots over time", x = "Months",
        y = "CO2 flux (mgc_co2_m_2_d)")
 ```
 
-
-```{r spatial-ch4-flux}
+```{r co2-flux-per-plot}
 fluxes_data_method2 %>% 
-  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "ch4") %>% 
-  ggplot(aes(x = ecosystem_name, y = flux))+
-  geom_violin()+
-  labs(title = "CH4 flux in Swale vs Upland", x = "Ecosystems",
+  filter( gas == "co2") %>% 
+  ggplot(aes(x = plot, y = flux))+ 
+ geom_boxplot()+
+  labs(title = "CO2 flux across plots", x = "Plots",
+       y = "CO2 flux (mgc_co2_m_2_d)")
+```
+ 
+ 
+ 
+ 
+```{r spatial-ch4-flux}
+fluxes_data_method2 %>%
+  filter(gas == "ch4") %>% 
+  ggplot(aes(x = date, y = flux))+ 
+  geom_smooth(color = "red")+
+  geom_jitter()+
+  facet_wrap(~ plot)+
+  labs(title = "CH4 flux across plots over time", x = "Months",
+       y = "CH4 flux (mµgC_ch4_m_2_d)")
+```
+
+ 
+```{r ch4-flux-per-plot}
+fluxes_data_method2 %>% 
+  filter( gas == "ch4") %>% 
+  ggplot(aes(x = plot, y = flux))+
+  geom_boxplot()+
+  labs(title = "CH4 flux across plots", x = "Plots",
        y = "CH4 flux (mµgc_ch4_m_2_d)")
+```
+
+```{r n2o-flux-per-plot}
+fluxes_data_method2 %>% 
+  filter( gas == "n2o") %>% 
+  ggplot(aes(x = plot, y = flux))+ 
+ geom_boxplot()+
+  labs(title = "N2O flux across plots", x = "Plots",
+       y = "N2O flux (mµgn_n2o_m_2_d)")
 ```
 
 ```{r spatial-n2o-flux}
 fluxes_data_method2 %>%
-  filter(ecosystem_name == "SW" | ecosystem_name == "UP", gas == "n2o") %>% 
-  ggplot(aes(x = ecosystem_name, y = flux))+ 
-  geom_violin()+
-  labs(title = "N2O flux in Swale vs Upland", x = "Ecosystems",
+  filter(gas == "n2o") %>% 
+  ggplot(aes(x = date, y = flux))+ 
+  geom_smooth(color = "darkgreen")+
+  geom_jitter()+
+  facet_wrap(~ plot)+
+  labs(title = "N2O flux across plots over time", x = "Months",
        y = "N2O flux (mµgn_n2o_m_2_d)")
   
 ```
 
+
+
 ```{r temporal-co2-flux-block1}
 my_prairie_data %>%
-  filter( ecosystem_name == "SW" | ecosystem_name == "UP", ecosystem_block == "1", gas == "co2") %>% 
+  filter( ecosystem_name == "SW" | ecosystem_name == "UP", ecosystem_block == "1"  , gas == "co2") %>% 
   ggplot(aes( x = date, y = flux, color = ecosystem_name))+
   geom_smooth()+
   labs(title = "CO2 flux over time in Swale and Upland 1", x = "Months", y = "CO2 flux (mgc_co2_m_2_d")
@@ -321,53 +340,78 @@ my_prairie_data %>%
 ```  
 
 
-```{r relationship-between-soil-moisture-vs-co2-flux}
+```{r relationship-soil-moisture-vs-co2-flux}
 fluxes_data_method2 %>% 
    filter(gas == "co2") %>% 
   ggplot(aes(x = sensor_soil_moisture_percent, y = flux))+
   geom_smooth(method = "lm")+
-  geom_jitter()+
+  geom_point()+
+  labs(title = "Relatioship between CO2 flux and soil moisture", x = "Soil moisture (%)", y = "CO2 flux (mgc_co2_m_2_d)")+
   theme_bw()
 ```
 
 
-```{r relationship-between-soil-moisture-vs-ch4-flux}
+```{r relationship-soil-moisture-vs-ch4-flux}
 fluxes_data_method2 %>% 
-   filter(gas == "ch4" | gas == "n2o") %>% 
-  ggplot(aes(x = sensor_soil_moisture_percent, y = flux, color = gas))+
-  geom_smooth(method = "lm")+
-  geom_jitter()+
+   filter(gas == "ch4") %>% 
+  ggplot(aes(x = sensor_soil_moisture_percent, y = flux))+
+  geom_smooth()+
+  geom_point()+
+  labs(title = "Relatioship between CH4 flux and soil moisture", x = "Soil moisture (%)", y = "CH4 flux (mµgc_ch4_m_2_d)")+
   theme_bw()
   
 ```
 
+```{r relationship-soil-moisture-vs-n2o-flux}
+fluxes_data_method2 %>% 
+   filter(gas == "n2o") %>% 
+  ggplot(aes(x = sensor_soil_moisture_percent, y = flux))+
+  geom_smooth()+
+  geom_point()+
+  labs(title = "Relatioship between N2O flux and soil moisture", x = "Soil moisture (%)", y = "N2O flux (mµgn_n2o_m_2_d)")+
+  theme_bw()
+  
+```
 
 ```{r relationship-between-soil-temp-vs-co2-flux}
 fluxes_data_method2 %>%
   filter(gas == "co2") %>% 
   ggplot(aes(x = soil_temperature_c, y = flux))+
   geom_smooth(method = "lm")+
-  geom_jitter()+
+  geom_point()+
+  labs(title = "Relatioship between CO2 flux and soi temperature", x = "Soil temperature (°C)", y = "CO2 flux (mgc_co2_m_2_d)")+
   theme_bw()
     
 ```
 
 
-```{r relationship-between-soil-temp-vs-ch4-flux}
-fluxes_data_method2 %>%
-  filter(gas == "ch4" | gas == "n2o") %>% 
-  ggplot(aes(x = soil_temperature_c, y = flux, color = gas))+
+```{r relationship-between-soil-temp-ch4-flux}
+my_prairie_data %>%
+  filter(gas == "ch4") %>% 
+  ggplot(aes(x = soil_temperature_c, y = flux))+
   geom_smooth(method = "lm")+
-  geom_jitter()+
+  geom_point()+
+  labs(title = "Relatioship between CH4 flux and soil temperature", x = "Soil temperature (°C)", y = "CH4 flux (mµgc_ch4_m_2_d)")+
   theme_bw()
     
 ```
 
+```{r relationship-between-soil-temp-n2o-flux}
+my_prairie_data %>%
+  filter(gas == "n2o") %>% 
+  ggplot(aes(x = soil_temperature_c, y = flux))+
+  geom_smooth(method = "lm")+
+  geom_point()+
+  labs(title = "Relatioship between N2O flux and soil temperature", x = "Soil temperature (°C)", y = "N2O flux (mµgn_n2o_m_2_d)")+
+  theme_bw()
+    
+```
 
 ```{r relationship-between-plant-biomass-flux}
 fluxes_data_method2 %>% 
   ggplot(aes(x = plant_biomass_g, y = flux, color = gas))+
   geom_smooth(method = "lm")+
+  geom_point()+
   theme_bw()
 ```
 
@@ -375,7 +419,8 @@ fluxes_data_method2 %>%
 ```{r}
 my_prairie_data %>% 
   ggplot(aes(plant_cover_percent, flux, color = gas))+
-  geom_smooth(method = lm)+
+  geom_smooth(method = "lm")+
+  geom_point()+
   theme_bw()
 ```
 
